@@ -11,4 +11,4 @@ The process is straight forward with just a few steps.   You however first must 
 3.	Run a script to set specific attributes for the resources/sub-resources
 4.	Run a script to create connections to the L2 fabric
 
-Moroe documentation is in the word doc included in the project.
+Mroe documentation is in the word doc included in the project.
