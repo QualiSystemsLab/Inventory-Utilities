@@ -64,3 +64,21 @@ class SetConnectionsRow:
 
         self.point_a = row[1].value
         self.point_b = row[2].value
+
+# class CustomAttributeRow:
+#     def __init__(self, row):
+#         if str(row[0].value).upper() == 'Y':
+#             self.ignore = True
+#         else:
+#             self.ignore = False
+#
+#         self.model_name = row[1].value
+#         self.attribute_name = row[2].value
+#         self.default_value = row[3].value
+
+class SelectionHelper:
+    def __init__(self):
+        self.create_and_load = False
+        self.set_attributes = False
+        self.set_connections = False
+        self.list_connections = False

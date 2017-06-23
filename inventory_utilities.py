@@ -19,6 +19,7 @@ class CloudShellInventoryUtilities:
         self._load_configs()
         self.cs_session = self.open_cs_session()
         self.connection_list = []
+        self.selection = row_helpers.SelectionHelper()
 
     def open_cs_session(self):
         # connect to CloudShell
@@ -55,14 +56,16 @@ class CloudShellInventoryUtilities:
             self.cs_session.UpdatePhysicalConnection(resourceAFullPath=point_a, resourceBFullPath=point_b,
                                                      overrideExistingConnections=override)
         except CloudShellAPIError as err:
-            print err.message
+            print 'Error - Attempting to connect %s to %s' % (point_a, point_b)
+            print '  > %s' % err.message
 
     def get_attribute_value(self, device_name, attribute_name):
         try:
             return self.cs_session.GetAttributeValue(resourceFullPath=device_name,
                                                      attributeName=attribute_name).Value
         except CloudShellAPIError as err:
-            print err.message
+            print 'Error - Getting Value of Attribute %s for Device %s' % (attribute_name, device_name)
+            print '  > %s' % err.message
 
     def set_attribute_value(self, device_name, attribute_name, value, may_not_exist=False):
         try:
@@ -73,7 +76,8 @@ class CloudShellInventoryUtilities:
             if may_not_exist:
                 pass
             else:
-                print err.message
+                print 'Error - setting value on Attribute %s for Device %s' % (attribute_name, device_name)
+                print '  > %s' % err.message
 
     def has_attribute(self, attribute_name, attribute_list):
         tar = BAD_VALUE
@@ -182,7 +186,8 @@ class CloudShellInventoryUtilities:
                         self.cs_session.AutoLoad(resourceFullPath=row.fullname)
 
                 except CloudShellAPIError as err:
-                    print err.message
+                    print 'Error - Loading Initial Attributes from the Create and Autoload'
+                    print '  > %s' % err.message
             elif not row.valid:
                 print 'Invalid Row, missing info (row # %s)' % ro
                 print 'Name: %s  Address: %s  Resource Family: %s  Model %s' % (row.name, row.address,
@@ -202,10 +207,11 @@ class CloudShellInventoryUtilities:
                         x_name = self.has_attribute(attribute_name=att, attribute_list=device_att_list)
                         if x_name != BAD_VALUE:
                             try:
-                                self.set_attribute_value(device_name=row.name, attribute_name=att,
+                                self.set_attribute_value(device_name=row.name, attribute_name=x_name,
                                                          value=row.attributes[att], may_not_exist=True)
                             except CloudShellAPIError as err:
-                                print err.message
+                                print 'Error - Trying to set Attribute %s on %s' % (att, row.name)
+                                print '  > %s' % err.message
 
     def list_connections(self):
         sheet = self.workbook.sheet_by_name('4-ListConnections')
@@ -236,6 +242,8 @@ class CloudShellInventoryUtilities:
                 csvout.writerow(['', ''])
                 f.close()
 
+        print '==> Connections List Created: %s' % csv_filepath
+
     def set_connections(self):
         sheet = self.workbook.sheet_by_name('3-SetConnections')
         for ro in range (5, sheet.nrows):
@@ -249,3 +257,76 @@ class CloudShellInventoryUtilities:
                     pass
                 else:
                     pass
+
+    # def add_custom_attributes(self):
+    #     sheet = self.workbook.sheet_by_name('0-AddCustomAttributes')
+    #
+    #     for ro in range(5, sheet.nrows):
+    #         row = row_helpers.CustomAttributeRow(sheet.row(ro))
+    #         if not row.ignore:
+    #             try:
+    #                 self.cs_session.SetCustomShellAttribute(modelName=row.model_name,
+    #                                                         attributeName=row.attribute_name,
+    #                                                         defaultValue=row.default_value, restrictedValues='')
+    #             except CloudShellAPIError as err:
+    #                 print err.message
+
+##########################################
+def main():
+    skip = False
+    input_loop = True
+    print '\n\nCloudShell Inventory Bulk Upload Utility'
+    local = CloudShellInventoryUtilities()
+
+    print '\nUsing: %s' % local.filepath
+    print '%s' % '-' * 40
+    print 'Make your selection:'
+    print ' 1) Create and AutoLoad'
+    print ' 2) Set Attributes'
+    print ' 3) Set Connections'
+    print ' 4) List Connections'
+    print ' 5) Bulk Load (1, 2, 3)'
+
+    while input_loop:
+        print "\n'0' or 'exit' to Exit"
+        user_input = raw_input('Selection: ')
+
+        if user_input == '0' or user_input.upper() == 'EXIT':
+            skip = True
+            input_loop = False
+        else:
+            if user_input == '1':
+                local.selection.create_and_load = True
+                input_loop = False
+            elif user_input == '2':
+                local.selection.set_attributes = True
+                input_loop = False
+            elif user_input == '3':
+                local.selection.set_connections = True
+                input_loop = False
+            elif user_input == '4':
+                local.selection.list_connections = True
+                input_loop = False
+            elif user_input == '5':
+                local.selection.create_and_load = True
+                local.selection.set_attributes = True
+                local.selection.set_connections = True
+                input_loop = False
+        # end while loop for input
+
+    # act on the input
+    if not skip:
+        if local.selection.list_connections:
+            local.list_connections()
+        if local.selection.create_and_load:
+            local.create_n_autoload()
+        if local.selection.set_attributes:
+            local.set_attributes()
+        if local.selection.set_connections:
+            local.set_connections()
+
+    print '\nComplete!'
+
+
+if __name__ == '__main__':
+    main()
