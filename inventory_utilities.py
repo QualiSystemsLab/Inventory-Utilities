@@ -106,7 +106,7 @@ class CloudShellInventoryUtilities:
         temp = [dev_details.Name, '']
         for each in dev_details.Connections:
             temp[1] = each.FullPath
-            self.connection_list.append(temp)
+        self.connection_list.append(temp)
         for child in dev_details.ChildResources:
             self._inner_connections(child)
 
