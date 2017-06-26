@@ -33,7 +33,10 @@ class AutoloadRow:
         self.snmp_version = row[15].value
         self.snmp_read_str = row[16].value
         self.location = row[17].value
-        if self.name != '' and self.address != '' and self.resource_family != '' and self.resource_model != '':
+        if self.name.strip() != '' and \
+                        self.address.strip() != '' and \
+                        self.resource_family.strip() != '' and \
+                        self.resource_model.strip() != '':
             self.valid = True
         else:
             self.valid = False
@@ -65,16 +68,16 @@ class SetConnectionsRow:
         self.point_a = row[1].value
         self.point_b = row[2].value
 
-# class CustomAttributeRow:
-#     def __init__(self, row):
-#         if str(row[0].value).upper() == 'Y':
-#             self.ignore = True
-#         else:
-#             self.ignore = False
-#
-#         self.model_name = row[1].value
-#         self.attribute_name = row[2].value
-#         self.default_value = row[3].value
+class CustomAttributeRow:
+    def __init__(self, row):
+        if str(row[0].value).upper() == 'Y':
+            self.ignore = True
+        else:
+            self.ignore = False
+
+        self.model_name = row[1].value
+        self.attribute_name = row[2].value
+        self.default_value = row[3].value
 
 class SelectionHelper:
     def __init__(self):
