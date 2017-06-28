@@ -37,7 +37,7 @@ class CloudShellInventoryUtilities:
                                                port=int(self.cs_port))
         except CloudShellAPIError as err:
             print err.message
-            logging.critical('Unable to open CloudShell API sesssion: %s' % err.message)
+            logging.critical('Unable to open CloudShell API session: %s' % err.message)
             return None
 
     def _load_workbook(self):
@@ -48,6 +48,7 @@ class CloudShellInventoryUtilities:
         except StandardError as err:
             print 'Could not open %s' % self.filepath
             print 'Message: %s' % err.message
+            logging.error('Could not open %s - Error Msg: %s' % (self.filepath, err.message))
 
     def _load_configs(self):
         sheet = self.workbook.sheet_by_name('Settings')
@@ -69,7 +70,7 @@ class CloudShellInventoryUtilities:
         except CloudShellAPIError as err:
             print 'Error - Attempting to connect %s to %s' % (point_a, point_b)
             print '  > %s' % err.message
-            logging.debug('Error mapping connection %s to %s' % (point_a, point_b))
+            logging.debug('Error mapping connection "%s" to "%s"' % (point_a, point_b))
             logging.error(err.message)
 
     def get_attribute_value(self, device_name, attribute_name):
@@ -79,9 +80,9 @@ class CloudShellInventoryUtilities:
             logging.debug('Look up of Attribute %s Value on %s: %s' %(attribute_name, device_name, lkup))
             return lkup
         except CloudShellAPIError as err:
-            print 'Error - Getting Value of Attribute %s for Device %s' % (attribute_name, device_name)
+            print 'Error - Getting Value of Attribute "%s" for Device %s' % (attribute_name, device_name)
             print '  > %s' % err.message
-            logging.debug('Error looking up attribute %s value on %s' %(attribute_name, device_name))
+            logging.debug('Error looking up attribute "%s" value on %s' %(attribute_name, device_name))
             logging.error(err.message)
 
     def set_attribute_value(self, device_name, attribute_name, value, may_not_exist=False):
@@ -89,12 +90,12 @@ class CloudShellInventoryUtilities:
             self.cs_session.SetAttributeValue(resourceFullPath=device_name,
                                               attributeName=attribute_name,
                                               attributeValue=value)
-            logging.debug('Set new Attribute value for %s on %s: %s' %(attribute_name, device_name, value))
+            logging.debug('Set new Attribute value for "%s" on %s: %s' %(attribute_name, device_name, value))
         except CloudShellAPIError as err:
             if may_not_exist:
                 pass
             else:
-                print 'Error - setting value on Attribute %s for Device %s' % (attribute_name, device_name)
+                print 'Error - setting value on Attribute "%s" for Device %s' % (attribute_name, device_name)
                 print '  > %s' % err.message
 
     def has_attribute(self, attribute_name, attribute_list):
@@ -165,7 +166,7 @@ class CloudShellInventoryUtilities:
                     if row.driver_name.strip() != '':
                         self.cs_session.UpdateResourceDriver(resourceFullPath=row.fullname,
                                                              driverName=row.driver_name)
-                        logging.debug('Driver %s added to %s' % (row.driver_name, row.fullname))
+                        logging.debug('Driver "%s" added to %s' % (row.driver_name, row.fullname))
 
                     # set attributes
                     a_list = self.cs_session.GetResourceDetails(resourceFullPath=row.fullname).ResourceAttributes
@@ -238,11 +239,12 @@ class CloudShellInventoryUtilities:
                             try:
                                 self.set_attribute_value(device_name=row.name, attribute_name=x_name,
                                                          value=row.attributes[att], may_not_exist=True)
-                                logging.info('Attribute %s set to %s on %s' % (x_name, row.attributes[att], row.name))
+                                logging.info('Attribute "%s" set to "%s" on %s' %
+                                             (x_name, row.attributes[att], row.name))
                             except CloudShellAPIError as err:
                                 print 'Error - Trying to set Attribute %s on %s' % (att, row.name)
                                 print '  > %s' % err.message
-                                logging.debug('Error setting Attribute %s to value %s on %s'
+                                logging.debug('Error setting Attribute "%s" to value "%s" on %s'
                                               % (x_name, row.attributes[att], row.name))
                                 logging.error(err.message)
 
@@ -301,7 +303,7 @@ class CloudShellInventoryUtilities:
 
     def add_custom_attributes(self):
         logging.info('Add Custom Attributes Called')
-        sheet = self.workbook.sheet_by_name('0-AddCustomAttributes')
+        sheet = self.workbook.sheet_by_name('0-AddCustomAttribs')
 
         for ro in range(5, sheet.nrows):
             row = row_helpers.CustomAttributeRow(sheet.row(ro))
@@ -310,7 +312,7 @@ class CloudShellInventoryUtilities:
                     self.cs_session.SetCustomShellAttribute(modelName=row.model_name,
                                                             attributeName=row.attribute_name,
                                                             defaultValue=row.default_value, restrictedValues=[''])
-                    logging.info('Custom Attribute %s added to %s Shell - Default Value %s' %
+                    logging.info('Custom Attribute "%s" added to "%s" Shell - Default Value: %s' %
                                  (row.attribute_name, row.model_name, row.default_value))
                 except CloudShellAPIError as err:
                     print err.message
@@ -326,11 +328,16 @@ def main():
     print '\nUsing: %s' % local.filepath
     print '%s' % '-' * 40
     print 'Make your selection:'
-    print ' 1) Create and AutoLoad'
-    print ' 2) Set Attributes'
-    print ' 3) Set Connections'
-    print ' 4) List Connections'
-    print ' 5) Bulk Load (1, 2, 3)'
+    print ' Main Tasks:'
+    print '  1) Create and AutoLoad'
+    print '  2) Set Attributes'
+    print '  3) Set Connections'
+    print '  4) Bulk Load (1, 2, 3)'
+    print ' --------------------------------'
+    print ' Aux Tasks:'
+    print '  5) Add Custom Attributes'
+    print '  6) List Connections'
+
 
     while input_loop:
         print "\n'0' or 'exit' to Exit"
@@ -338,27 +345,32 @@ def main():
         user_input = raw_input('Selection: ')
 
         logging.debug('User Input from Main Prompt: %s' % user_input)
+
         if user_input == '0' or user_input.upper() == 'EXIT':
             skip = True
             input_loop = False
         else:
-            if user_input == '1':
-                local.selection.create_and_load = True
-                input_loop = False
-            elif user_input == '2':
-                local.selection.set_attributes = True
-                input_loop = False
-            elif user_input == '3':
-                local.selection.set_connections = True
-                input_loop = False
-            elif user_input == '4':
-                local.selection.list_connections = True
-                input_loop = False
-            elif user_input == '5':
-                local.selection.create_and_load = True
-                local.selection.set_attributes = True
-                local.selection.set_connections = True
-                input_loop = False
+            try:
+                input_check = int(user_input)
+                if int(input_check) in range(1, 7):  # good response
+                    input_loop = False
+
+                    if user_input == '1':
+                        local.selection.create_and_load = True
+                    elif user_input == '2':
+                        local.selection.set_attributes = True
+                    elif user_input == '3':
+                        local.selection.set_connections = True
+                    elif user_input == '4':
+                        local.selection.create_and_load = True
+                        local.selection.set_attributes = True
+                        local.selection.set_connections = True
+                    elif user_input == '5':
+                        local.selection.add_custom_attributes = True
+                    elif user_input == '6':
+                        local.selection.list_connections = True
+            except StandardError:
+                print 'Invalid Input'
         # end while loop for input
 
     # act on the input
@@ -371,6 +383,8 @@ def main():
             local.set_attributes()
         if local.selection.set_connections:
             local.set_connections()
+        if local.selection.add_custom_attributes:
+            local.add_custom_attributes()
 
     print '\nComplete!'
 

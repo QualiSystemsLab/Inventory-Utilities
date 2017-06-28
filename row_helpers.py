@@ -85,3 +85,4 @@ class SelectionHelper:
         self.set_attributes = False
         self.set_connections = False
         self.list_connections = False
+        self.add_custom_attributes = False
