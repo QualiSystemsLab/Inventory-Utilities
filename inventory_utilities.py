@@ -342,7 +342,7 @@ def main():
     while input_loop:
         print "\n'0' or 'exit' to Exit"
         # main prompt
-        user_input = raw_input('Selection: ')
+        user_input = raw_input('Selection (1-6): ')
 
         logging.debug('User Input from Main Prompt: %s' % user_input)
 
