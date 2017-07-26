@@ -233,7 +233,7 @@ class CloudShellInventoryUtilities:
             if not row.ignore:
                 device_att_list = self.attribute_names(row.name)  # get a list of this devices attributes by name
                 for att in custom_attributes:  # walk the headers and assign if they match (skip blanks)
-                    if sheet.cell(ro, custom_attributes.index(att)).strip() != '':  # not empty
+                    if str(sheet.cell(ro, custom_attributes.index(att))).strip() != '':  # not empty
                         x_name = self.has_attribute(attribute_name=att, attribute_list=device_att_list)
                         if x_name != BAD_VALUE:
                             try:
