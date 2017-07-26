@@ -58,7 +58,7 @@ class CloudShellInventoryUtilities:
         self.cs_domain = sheet.cell(4, 1).value
         self.cs_port = sheet.cell(5, 1).value
         self.logfilename = sheet.cell(6, 1).value
-        self.loglevel = str(sheet.cell(7,1).value).upper()
+        self.loglevel = sheet.cell(7,1).value
         if self.loglevel.strip() == '':
             self.loglevel = 'INFO'
 
@@ -317,7 +317,6 @@ class CloudShellInventoryUtilities:
                 except CloudShellAPIError as err:
                     print err.message
                     logging.error(err.message)
-
 
 ##########################################
 def main():
