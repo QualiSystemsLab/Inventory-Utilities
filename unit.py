@@ -12,6 +12,7 @@ unit = CloudShellInventoryUtilities()
 # unit.create_n_autoload()
 
 unit.set_attributes()
+unit._resource_exists()
 
 # details = unit.cs_session.GetResourceDetails('mrv-116')
 # print unit._resource_exists('mrv-116')
