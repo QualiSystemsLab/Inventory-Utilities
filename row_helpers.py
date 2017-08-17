@@ -21,7 +21,11 @@ class AutoloadRow:
 
         self.resource_family = row[4].value
         self.resource_model = row[5].value
-        self.domain = row[6].value
+        self.domain = []
+        dom_list = row[6].value
+        temp = dom_list.split(',')
+        for each in temp:
+            self.domain.append(each.strip())
         self.address = row[7].value
         self.folder_path = row[8].value
         self.connection_type = row[9].value
@@ -54,6 +58,7 @@ class SetAttributesRow:
         self.attributes = dict()
         n = 2
         for h in attribute_list:
+            # blank check handled in the set_attributes method
             self.attributes[h] = row[n].value
             n += 1
 

@@ -162,6 +162,11 @@ class CloudShellInventoryUtilities:
                     logging.info('New Resource Created: %s (F: %s, M: %s, A: %s, P: %s)' %
                                  (row.name, row.resource_family, row.resource_model, row.address, row.folder_path))
 
+                    # add to domain:
+                    for dom in row.domain:
+                        self.cs_session.AddResourcesToDomain(domainName=dom,
+                                                             resourcesNames=[row.name])
+
                     # set the driver:
                     if row.driver_name.strip() != '':
                         self.cs_session.UpdateResourceDriver(resourceFullPath=row.fullname,
