@@ -57,7 +57,7 @@ class CloudShellInventoryUtilities:
         self.cs_password = sheet.cell(3, 1).value
         self.cs_domain = sheet.cell(4, 1).value
         self.cs_port = sheet.cell(5, 1).value
-        self.logfilename = sheet.cell(6, 1).value
+        self.logfilename = ('%s/%s') %(os.getcwd(), sheet.cell(6, 1).value)
         self.loglevel = sheet.cell(7,1).value
         if self.loglevel.strip() == '':
             self.loglevel = 'INFO'
@@ -166,6 +166,7 @@ class CloudShellInventoryUtilities:
                     for dom in row.domain:
                         self.cs_session.AddResourcesToDomain(domainName=dom,
                                                              resourcesNames=[row.name])
+                        logging.debug('%s added to domain %s' % (row.name, dom))
 
                     # set the driver:
                     if row.driver_name.strip() != '':
