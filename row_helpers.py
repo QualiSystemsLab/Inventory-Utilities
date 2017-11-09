@@ -70,8 +70,15 @@ class SetConnectionsRow:
         else:
             self.ignore = False
 
-        self.point_a = row[1].value
-        self.point_b = row[2].value
+        if row[1].value == '':
+            self.point_a = None
+        else:
+            self.point_a = row[1].value
+
+        if row[2].value == '':
+            self.point_b = None
+        else:
+            self.point_b = row[2].value
 
 class CustomAttributeRow:
     def __init__(self, row):

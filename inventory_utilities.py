@@ -86,17 +86,20 @@ class CloudShellInventoryUtilities:
             logging.error(err.message)
 
     def set_attribute_value(self, device_name, attribute_name, value, may_not_exist=False):
-        try:
-            self.cs_session.SetAttributeValue(resourceFullPath=device_name,
-                                              attributeName=attribute_name,
-                                              attributeValue=value)
-            logging.debug('Set new Attribute value for "%s" on %s: %s' %(attribute_name, device_name, value))
-        except CloudShellAPIError as err:
-            if may_not_exist:
-                pass
-            else:
-                print 'Error - setting value on Attribute "%s" for Device %s' % (attribute_name, device_name)
+        device_att_list = self.attribute_names(device_name)
+        x_name = self.has_attribute(attribute_name=attribute_name, attribute_list=device_att_list)
+        if x_name != BAD_VALUE:
+            try:
+                self.cs_session.SetAttributeValue(resourceFullPath=device_name,
+                                                  attributeName=x_name, attributeValue=value)
+                logging.info('Attribute "%s" set to "%s" on %s' %
+                             (x_name, value, device_name))
+            except CloudShellAPIError as err:
+                print 'Error - Trying to set Attribute %s on %s' % (x_name, device_name)
                 print '  > %s' % err.message
+                logging.debug('Error setting Attribute "%s" to value "%s" on %s'
+                              % (x_name, value, device_name))
+                logging.error(err.message)
 
     def has_attribute(self, attribute_name, attribute_list):
         tar = BAD_VALUE
@@ -164,9 +167,13 @@ class CloudShellInventoryUtilities:
 
                     # add to domain:
                     for dom in row.domain:
-                        self.cs_session.AddResourcesToDomain(domainName=dom,
-                                                             resourcesNames=[row.name])
-                        logging.debug('%s added to domain %s' % (row.name, dom))
+                        if dom != '':
+                            self.cs_session.AddResourcesToDomain(domainName=str(dom).strip(),
+                                                                 resourcesNames=[row.fullname])
+                            logging.debug('%s added to domain %s' % (row.name, dom))
+                        # else:
+                        #     self.cs_session.AddResourcesToDomain(domainName='Global',
+                        #                                          resourcesNames=[row.fullname])
 
                     # set the driver:
                     if row.driver_name.strip() != '':
@@ -237,22 +244,10 @@ class CloudShellInventoryUtilities:
         for ro in range(5, sheet.nrows):
             row = row_helpers.SetAttributesRow(sheet.row(ro), custom_attributes)  # builds the data object
             if not row.ignore:
-                device_att_list = self.attribute_names(row.name)  # get a list of this devices attributes by name
                 for att in custom_attributes:  # walk the headers and assign if they match (skip blanks)
                     if str(sheet.cell(ro, custom_attributes.index(att))).strip() != '':  # not empty
-                        x_name = self.has_attribute(attribute_name=att, attribute_list=device_att_list)
-                        if x_name != BAD_VALUE:
-                            try:
-                                self.set_attribute_value(device_name=row.name, attribute_name=x_name,
-                                                         value=row.attributes[att], may_not_exist=True)
-                                logging.info('Attribute "%s" set to "%s" on %s' %
-                                             (x_name, row.attributes[att], row.name))
-                            except CloudShellAPIError as err:
-                                print 'Error - Trying to set Attribute %s on %s' % (att, row.name)
-                                print '  > %s' % err.message
-                                logging.debug('Error setting Attribute "%s" to value "%s" on %s'
-                                              % (x_name, row.attributes[att], row.name))
-                                logging.error(err.message)
+                        self.set_attribute_value(device_name=row.name, attribute_name=att,
+                                                 value=row.attributes[att], may_not_exist=True)
 
     def list_connections(self):
         logging.info('List Connections Called')
@@ -295,17 +290,29 @@ class CloudShellInventoryUtilities:
     def set_connections(self):
         logging.info('Set Connections Called')
         sheet = self.workbook.sheet_by_name('3-SetConnections')
+        # for ro in range (5, sheet.nrows):
+        #     row = row_helpers.SetConnectionsRow(sheet.row(ro))
+        #     if not row.ignore:
+        #         if self._resource_exists(row.point_a) or self._resource_exists(row.point_b):
+        #             self._make_connection(row.point_a, row.point_b)
+        #         elif not row.point_a:
+        #             pass
+        #         elif not row.point_b:
+        #             pass
+        #         else:
+        #             pass
+
         for ro in range (5, sheet.nrows):
             row = row_helpers.SetConnectionsRow(sheet.row(ro))
             if not row.ignore:
-                if self._resource_exists(row.point_a) and self._resource_exists(row.point_b):
-                    self._make_connection(row.point_a, row.point_b)
-                elif not row.point_a:
-                    pass
-                elif not row.point_b:
-                    pass
-                else:
-                    pass
+                if row.point_a:
+                    if row.point_b:
+                        self._make_connection(row.point_a, row.point_b)
+                    else:
+                        self._make_connection(row.point_a, '')
+                elif row.point_b:
+                    if not row.point_a:
+                        self._make_connection(row.point_b, '')
 
     def add_custom_attributes(self):
         logging.info('Add Custom Attributes Called')
