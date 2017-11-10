@@ -331,6 +331,19 @@ class CloudShellInventoryUtilities:
                     print err.message
                     logging.error(err.message)
 
+    def print_options(self):
+        print 'Make your selection:'
+        print ' Main Tasks:'
+        print '  1) Create and AutoLoad'
+        print '  2) Set Attributes'
+        print '  3) Set Connections'
+        print '  4) Bulk Load (1, 2, 3)'
+        print ' --------------------------------'
+        print ' Aux Tasks:'
+        print '  5) Add Custom Attributes'
+        print '  6) List Connections'
+
+
 ##########################################
 def main():
     skip = False
@@ -338,68 +351,63 @@ def main():
     print '\n\nCloudShell Inventory Bulk Upload Utility'
     local = CloudShellInventoryUtilities()
 
-    print '\nUsing: %s' % local.filepath
-    print '%s' % '-' * 40
-    print 'Make your selection:'
-    print ' Main Tasks:'
-    print '  1) Create and AutoLoad'
-    print '  2) Set Attributes'
-    print '  3) Set Connections'
-    print '  4) Bulk Load (1, 2, 3)'
-    print ' --------------------------------'
-    print ' Aux Tasks:'
-    print '  5) Add Custom Attributes'
-    print '  6) List Connections'
+    if local.cs_session:
+        print '\nUsing: %s' % local.filepath
+        print '%s' % '-' * 40
+        local.print_options()
 
+        while input_loop:
+            print "\n'0' or 'exit' to Exit"
+            # main prompt
+            user_input = raw_input('Selection (1-6): ')
 
-    while input_loop:
-        print "\n'0' or 'exit' to Exit"
-        # main prompt
-        user_input = raw_input('Selection (1-6): ')
+            logging.debug('User Input from Main Prompt: %s' % user_input)
 
-        logging.debug('User Input from Main Prompt: %s' % user_input)
+            if user_input == '0' or user_input.upper() == 'EXIT':
+                skip = True
+                input_loop = False
+            else:
+                try:
+                    input_check = int(user_input)
+                    if int(input_check) in range(1, 7):  # good response
+                        input_loop = False
 
-        if user_input == '0' or user_input.upper() == 'EXIT':
-            skip = True
-            input_loop = False
-        else:
-            try:
-                input_check = int(user_input)
-                if int(input_check) in range(1, 7):  # good response
-                    input_loop = False
+                        if user_input == '1':
+                            local.selection.create_and_load = True
+                        elif user_input == '2':
+                            local.selection.set_attributes = True
+                        elif user_input == '3':
+                            local.selection.set_connections = True
+                        elif user_input == '4':
+                            local.selection.create_and_load = True
+                            local.selection.set_attributes = True
+                            local.selection.set_connections = True
+                        elif user_input == '5':
+                            local.selection.add_custom_attributes = True
+                        elif user_input == '6':
+                            local.selection.list_connections = True
+                except StandardError:
+                    print '\n>> Invalid Input'
+                    local.print_options()
+            # end while loop for input
 
-                    if user_input == '1':
-                        local.selection.create_and_load = True
-                    elif user_input == '2':
-                        local.selection.set_attributes = True
-                    elif user_input == '3':
-                        local.selection.set_connections = True
-                    elif user_input == '4':
-                        local.selection.create_and_load = True
-                        local.selection.set_attributes = True
-                        local.selection.set_connections = True
-                    elif user_input == '5':
-                        local.selection.add_custom_attributes = True
-                    elif user_input == '6':
-                        local.selection.list_connections = True
-            except StandardError:
-                print 'Invalid Input'
-        # end while loop for input
+        # act on the input
+        if not skip:
+            if local.selection.list_connections:
+                local.list_connections()
+            if local.selection.create_and_load:
+                local.create_n_autoload()
+            if local.selection.set_attributes:
+                local.set_attributes()
+            if local.selection.set_connections:
+                local.set_connections()
+            if local.selection.add_custom_attributes:
+                local.add_custom_attributes()
 
-    # act on the input
-    if not skip:
-        if local.selection.list_connections:
-            local.list_connections()
-        if local.selection.create_and_load:
-            local.create_n_autoload()
-        if local.selection.set_attributes:
-            local.set_attributes()
-        if local.selection.set_connections:
-            local.set_connections()
-        if local.selection.add_custom_attributes:
-            local.add_custom_attributes()
+        print '\nComplete!'
 
-    print '\nComplete!'
+    else:
+        print '\n!! No CloudShell connection - See Error Above\nExiting'
 
 
 if __name__ == '__main__':
