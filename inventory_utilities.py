@@ -39,6 +39,11 @@ class CloudShellInventoryUtilities:
             print err.message
             logging.critical('Unable to open CloudShell API session: %s' % err.message)
             return None
+        except StandardError as err:
+            print err.message
+            logging.critical('General Error on CloudShell API Session Start\n>> Check Configuration \n>> Msg: %s'
+                             % err.message)
+            return None
 
     def _load_workbook(self):
         cwd = os.getcwd()
