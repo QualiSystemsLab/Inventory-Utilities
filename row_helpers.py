@@ -103,3 +103,24 @@ class SelectionHelper:
         self.inventory_report = False
         self.user_report = False
         self.update_users = False
+
+
+class UserUpdateRow:
+    def __init__(self, row):
+        if str(row[0].value).upper() == 'Y':
+            self.ignore = True
+        else:
+            self.ignore = False
+
+        self.user = row[1].value
+        self.email = row[2].value
+
+        if str(row[3].value).upper() == 'N':
+            self.active = False
+        else:
+            self.active = True
+
+        self.add_groups = str(row[4].value).split(',')
+        self.remove_groups = str(row[5].value).split(',')
+        self.max_reservation = str(row[6].value).strip()
+        self.max_duration = str(int(row[7].value) * 60)

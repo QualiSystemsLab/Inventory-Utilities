@@ -346,6 +346,38 @@ class CloudShellInventoryUtilities:
                     print err.message
                     logging.error(err.message)
 
+    def update_users(self):
+        logging.info('Update Users Called')
+        sheet = self.workbook.sheet_by_name('5-UpdateUsers')
+
+        for ro in range(5, sheet.nrows):
+            row = row_helpers.UserUpdateRow(sheet.row(ro))
+            if not row.ignore:
+                try:
+                    if row.email == '*':
+                        self.cs_session.UpdateUser(username=row.user, email='', isActive=row.active)
+                    elif row.email != '':
+                        self.cs_session.UpdateUser(username=row.user, email=row.email, isActive=row.active)
+                    else:
+                        self.cs_session.UpdateUser(username=row.user, isActive=row.active)
+
+                    for x in xrange(len(row.add_groups)):
+                        self.cs_session.AddUsersToGroup(usernames=[row.user],
+                                                        groupName=row.add_groups[x].strip())
+
+                    for x in xrange(len(row.remove_groups)):
+                        self.cs_session.RemoveUsersFromGroup(usernames=[row.user],
+                                                             groupName=row.remove_groups[x].strip())
+
+                    self.cs_session.UpdateUsersLimitations([cs_api.UserUpdateRequest(
+                        Username=row.user, MaxConcurrentReservations=row.max_reservation,
+                        MaxReservationDuration=row.max_duration)])
+
+                except CloudShellAPIError as err:
+                    logging.error('Error in Updating Users')
+                    logging.error(err.message)
+                    print 'Error Updating User {}\n  {}\n'.format(row.user, err.message)
+
     def generate_user_report(self):
         logging.info('Generate User Report')
 
@@ -522,7 +554,7 @@ def main():
             if local.selection.user_report:
                 local.generate_user_report()
             if local.selection.update_users:
-                pass
+                local.update_users()
 
         print '\nComplete!'
 
