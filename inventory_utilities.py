@@ -5,6 +5,9 @@ import xlrd
 import csv
 import os
 import row_helpers
+from time import strftime
+from xml.etree.cElementTree import XML
+import xml_to_dict as x2d
 
 
 BAD_VALUE = ' 80y  | 53hak~ljbdpiSY* piwh4t[09AP s<cj'
@@ -62,7 +65,7 @@ class CloudShellInventoryUtilities:
         self.cs_password = sheet.cell(3, 1).value
         self.cs_domain = sheet.cell(4, 1).value
         self.cs_port = sheet.cell(5, 1).value
-        self.logfilename = ('%s/%s') %(os.getcwd(), sheet.cell(6, 1).value)
+        self.logfilename = sheet.cell(6, 1).value
         self.loglevel = sheet.cell(7,1).value
         if self.loglevel.strip() == '':
             self.loglevel = 'INFO'
@@ -91,20 +94,17 @@ class CloudShellInventoryUtilities:
             logging.error(err.message)
 
     def set_attribute_value(self, device_name, attribute_name, value, may_not_exist=False):
-        device_att_list = self.attribute_names(device_name)
-        x_name = self.has_attribute(attribute_name=attribute_name, attribute_list=device_att_list)
-        if x_name != BAD_VALUE:
-            try:
-                self.cs_session.SetAttributeValue(resourceFullPath=device_name,
-                                                  attributeName=x_name, attributeValue=value)
-                logging.info('Attribute "%s" set to "%s" on %s' %
-                             (x_name, value, device_name))
-            except CloudShellAPIError as err:
-                print 'Error - Trying to set Attribute %s on %s' % (x_name, device_name)
+        try:
+            self.cs_session.SetAttributeValue(resourceFullPath=device_name,
+                                              attributeName=attribute_name,
+                                              attributeValue=value)
+            logging.debug('Set new Attribute value for "%s" on %s: %s' %(attribute_name, device_name, value))
+        except CloudShellAPIError as err:
+            if may_not_exist:
+                pass
+            else:
+                print 'Error - setting value on Attribute "%s" for Device %s' % (attribute_name, device_name)
                 print '  > %s' % err.message
-                logging.debug('Error setting Attribute "%s" to value "%s" on %s'
-                              % (x_name, value, device_name))
-                logging.error(err.message)
 
     def has_attribute(self, attribute_name, attribute_list):
         tar = BAD_VALUE
@@ -254,6 +254,20 @@ class CloudShellInventoryUtilities:
                         self.set_attribute_value(device_name=row.name, attribute_name=att,
                                                  value=row.attributes[att], may_not_exist=True)
 
+    def _write_to_csv(self, destination, lines=[]):
+        logging.info('Writing CSV to {}'.format(destination))
+        try:
+            with open(destination, 'ab') as f:
+                csvout = csv.writer(f)
+                for line in lines:
+                    csvout.writerow(line)
+                csvout.writerow([' '])
+                f.close()
+        except StandardError as err:
+            logging.error('Issue generating CSV Report')
+            logging.error('CSV File: {}'.format(destination))
+            logging.error(err.message)
+
     def list_connections(self):
         logging.info('List Connections Called')
         sheet = self.workbook.sheet_by_name('4-ListConnections')
@@ -265,26 +279,22 @@ class CloudShellInventoryUtilities:
             else:
                 pass
 
-        line = ['Source', 'Connected To']
-        csv_filepath = '%s/current_connections.csv' % os.getcwd()
-        try:
-            with open(csv_filepath, 'wb') as f:  # open in overwrite binary
-                csvout = csv.writer(f)
-                csvout.writerow(line)
-                f.close()
+        report = [['Source', 'Connected To']]
+        csv_filepath = '{}/current_connections_{}.csv'.format(os.getcwd(), strftime('%Y_%m_%d_%Hh_%Mm'))
 
+        try:
             for item in device_query_list:
+                # report.append([item])
+
                 self.connection_list = []
+
                 details = self.cs_session.GetResourceDetails(resourceFullPath=item)
                 self._inner_connections(details)
 
-                with open(csv_filepath, 'ab') as f:  # open in append binary
-                    csvout = csv.writer(f)
-                    for pairing in self.connection_list:
-                        csvout.writerow(pairing)  # each connection is [point_a, point_b]
-                    csvout.writerow(['', ''])
-                    f.close()
+                for pairing in self.connection_list:
+                    report.append(pairing)  # each connection is [point_a, point_b]
 
+            self._write_to_csv(csv_filepath, report)
             print '==> Connections List Created: %s' % csv_filepath
         except StandardError as err:
             print 'Error Creating Connections List'
@@ -307,7 +317,7 @@ class CloudShellInventoryUtilities:
         #         else:
         #             pass
 
-        for ro in range (5, sheet.nrows):
+        for ro in range(5, sheet.nrows):
             row = row_helpers.SetConnectionsRow(sheet.row(ro))
             if not row.ignore:
                 if row.point_a:
@@ -336,6 +346,95 @@ class CloudShellInventoryUtilities:
                     print err.message
                     logging.error(err.message)
 
+    def generate_user_report(self):
+        logging.info('Generate User Report')
+
+        csv_filepath = '{}/user_report_{}.csv'.format(os.getcwd(), strftime('%Y_%m_%d_%Hh_%Mm'))
+
+        try:
+            user_list = self.cs_session.GetAllUsersDetails().Users
+
+            user_report = []
+            user_report.append(['Name', 'Email', 'Admin', 'Active', 'Groups'])
+
+            for user in user_list:
+                line = []
+                g_list = []
+
+                for g in user.Groups:
+                    g_list.append(g.Name)
+
+                line.append(user.Name)
+                line.append(user.Email)
+                line.append(user.IsAdmin)
+                line.append(user.IsActive)
+                line.append('; '.join(g_list))
+
+                user_report.append(line)
+
+            self._write_to_csv(csv_filepath, user_report)
+            print 'User Report Generated:\n  {}\n'.format(csv_filepath)
+        except StandardError as err:
+            logging.error('Unable to Generate User Report')
+            logging.error(err.message)
+            print 'Unable to Generate User Report:\n{}'.format(err.message)
+
+    def generate_inventory_report(self):
+        logging.info('Generate Inventory Report')
+
+        csv_filepath = '{}/inventory_report_{}.csv'.format(os.getcwd(), strftime('%Y_%m_%d_%Hh_%Mm'))
+
+        try:
+            inv_report = []
+            inv_report.append(['Name', 'Family', 'Model', 'Reserved', 'Domains'])
+
+            xml_raw = self.cs_session.ExportFamiliesAndModels().Configuration
+
+            xml_obj = XML(xml_raw)
+            xmldic = x2d.XmlDictConfig(xml_obj)
+
+            outer_key = xmldic.keys()
+
+            master_list = []
+            family_list = []
+
+            for key in outer_key:
+                if 'ResourceFamilies' in key:
+                    inner = xmldic[key]
+                    inner_keys = inner.keys()
+                    master_list = inner[inner_keys[0]]
+                    break
+
+            for each in master_list:
+                if each.get('ResourceType', 'Not') == 'Resource':
+                    family_list.append(each['Name'])
+
+            for family in family_list:
+                resource_list = self.cs_session.FindResources(resourceFamily=family, includeSubResources=False,
+                                                              maxResults=1000).Resources
+                for resource in resource_list:
+                    if '/' not in resource.FullName:
+                        line = []
+                        line.append(resource.FullName)
+                        line.append(resource.ResourceFamilyName)
+                        line.append(resource.ResourceModelName)
+                        if 'Not in' in resource.ReservedStatus:
+                            line.append('False')
+                        else:
+                            line.append('True')
+                        doms = []
+                        for dom in self.cs_session.GetResourceDetails(resourceFullPath=resource.FullPath).Domains:
+                            doms.append(dom.Name)
+                        line.append('; '.join(doms))
+                        inv_report.append(line)
+
+            self._write_to_csv(csv_filepath, inv_report)
+            print ('Inventory Report Generated:\n  {}\n'.format(csv_filepath))
+        except StandardError as err:
+            logging.error('Unable to generate inventory report')
+            logging.error(err.message)
+            print 'Unable to generate Inventory Report{}'.format(err.message)
+
     def print_options(self):
         print 'Make your selection:'
         print ' Main Tasks:'
@@ -347,6 +446,9 @@ class CloudShellInventoryUtilities:
         print ' Aux Tasks:'
         print '  5) Add Custom Attributes'
         print '  6) List Connections'
+        print '  7) Generate Inventory List'
+        print '  8) Generate User List'
+        print '  9) Update Users'
 
 
 ##########################################
@@ -364,7 +466,7 @@ def main():
         while input_loop:
             print "\n'0' or 'exit' to Exit"
             # main prompt
-            user_input = raw_input('Selection (1-6): ')
+            user_input = raw_input('Selection (1-9): ')
 
             logging.debug('User Input from Main Prompt: %s' % user_input)
 
@@ -374,7 +476,7 @@ def main():
             else:
                 try:
                     input_check = int(user_input)
-                    if int(input_check) in range(1, 7):  # good response
+                    if int(input_check) in range(1, 10):  # good response
                         input_loop = False
 
                         if user_input == '1':
@@ -391,6 +493,12 @@ def main():
                             local.selection.add_custom_attributes = True
                         elif user_input == '6':
                             local.selection.list_connections = True
+                        elif user_input == '7':
+                            local.selection.inventory_report = True
+                        elif user_input == '8':
+                            local.selection.user_report = True
+                        elif user_input == '9':
+                            local.selection.update_users = True
                 except StandardError:
                     print '\n>> Invalid Input'
                     local.print_options()
@@ -408,6 +516,12 @@ def main():
                 local.set_connections()
             if local.selection.add_custom_attributes:
                 local.add_custom_attributes()
+            if local.selection.inventory_report:
+                local.generate_inventory_report()
+            if local.selection.user_report:
+                local.generate_user_report()
+            if local.selection.update_users:
+                pass
 
         print '\nComplete!'
 

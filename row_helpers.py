@@ -69,7 +69,7 @@ class SetConnectionsRow:
             self.ignore = True
         else:
             self.ignore = False
-
+            
         if row[1].value == '':
             self.point_a = None
         else:
@@ -79,6 +79,7 @@ class SetConnectionsRow:
             self.point_b = None
         else:
             self.point_b = row[2].value
+
 
 class CustomAttributeRow:
     def __init__(self, row):
@@ -91,6 +92,7 @@ class CustomAttributeRow:
         self.attribute_name = row[2].value
         self.default_value = row[3].value
 
+
 class SelectionHelper:
     def __init__(self):
         self.create_and_load = False
@@ -98,3 +100,6 @@ class SelectionHelper:
         self.set_connections = False
         self.list_connections = False
         self.add_custom_attributes = False
+        self.inventory_report = False
+        self.user_report = False
+        self.update_users = False
