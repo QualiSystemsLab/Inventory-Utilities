@@ -386,7 +386,7 @@ class CloudShellInventoryUtilities:
 
         try:
             inv_report = []
-            inv_report.append(['Name', 'Family', 'Model', 'Reserved', 'Domains'])
+            inv_report.append(['Name', 'Address', 'Family', 'Model', 'Reserved', 'Domains'])
 
             xml_raw = self.cs_session.ExportFamiliesAndModels().Configuration
 
@@ -416,12 +416,13 @@ class CloudShellInventoryUtilities:
                     if '/' not in resource.FullName:
                         line = []
                         line.append(resource.FullName)
+                        line.append(resource.Address)
                         line.append(resource.ResourceFamilyName)
                         line.append(resource.ResourceModelName)
                         if 'Not in' in resource.ReservedStatus:
-                            line.append('False')
-                        else:
                             line.append('True')
+                        else:
+                            line.append('False')
                         doms = []
                         for dom in self.cs_session.GetResourceDetails(resourceFullPath=resource.FullPath).Domains:
                             doms.append(dom.Name)
