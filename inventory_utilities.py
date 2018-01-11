@@ -159,32 +159,49 @@ class CloudShellInventoryUtilities:
             row = row_helpers.AutoloadRow(sheet.row(ro))  # builds the data into our object from the AutoLoad Tab
             if row.valid and not row.ignore:
                 try:
-                    # build new item
-                    self.cs_session.CreateResource(resourceFamily=row.resource_family,
-                                                   resourceModel=row.resource_model,
-                                                   resourceName=row.name,
-                                                   resourceAddress=row.address,
-                                                   folderFullPath=row.folder_path,
-                                                   parentResourceFullPath=row.parent,
-                                                   resourceDescription=row.description)
-                    logging.info('New Resource Created: %s (F: %s, M: %s, A: %s, P: %s)' %
-                                 (row.name, row.resource_family, row.resource_model, row.address, row.folder_path))
+                    # is new and not update
+                    if not row.update:
+                        # build new item
+                        self.cs_session.CreateResource(resourceFamily=row.resource_family,
+                                                       resourceModel=row.resource_model,
+                                                       resourceName=row.name,
+                                                       resourceAddress=row.address,
+                                                       folderFullPath=row.folder_path,
+                                                       parentResourceFullPath=row.parent,
+                                                       resourceDescription=row.description)
+                        logging.info('New Resource Created: %s (F: %s, M: %s, A: %s, P: %s)' %
+                                     (row.name, row.resource_family, row.resource_model, row.address, row.folder_path))
+                    else:
+                        self.cs_session.UpdateResourceAddress(resourceFullPath=row.fullname,
+                                                              resourceAddress=row.address)
+                        logging.info('Updated Address on {} to {}'.format(row.name, row.address))
+                        if '/' not in row.fullname:
+                            self.cs_session.MoveResources([row.fullname], row.folder_path)
+                            logging.info('Moved Resource {} to {}'.format(row.name, row.folder_path))
 
                     # add to domain:
                     for dom in row.domain:
-                        if dom != '':
+                        if dom != '' and not dom.startswith('x_'):
                             self.cs_session.AddResourcesToDomain(domainName=str(dom).strip(),
                                                                  resourcesNames=[row.fullname])
-                            logging.debug('%s added to domain %s' % (row.name, dom))
-                        # else:
-                        #     self.cs_session.AddResourcesToDomain(domainName='Global',
-                        #                                          resourcesNames=[row.fullname])
+                            logging.info('%s added to domain %s' % (row.name, dom))
+                        elif dom.startswith('x_'):
+                            rm_dom = dom.split('x_')[1]
+                            self.cs_session.RemoveResourcesFromDomain(domainName=rm_dom.strip(),
+                                                                      resourcesNames=[row.fullname])
+                            logging.info('Removed {} from domain: {}'.format(row.fullname, rm_dom))
 
                     # set the driver:
                     if row.driver_name.strip() != '':
-                        self.cs_session.UpdateResourceDriver(resourceFullPath=row.fullname,
-                                                             driverName=row.driver_name)
-                        logging.debug('Driver "%s" added to %s' % (row.driver_name, row.fullname))
+                        try:
+                            self.cs_session.UpdateResourceDriver(resourceFullPath=row.fullname,
+                                                                 driverName=row.driver_name)
+                            logging.info('Driver "%s" added to %s' % (row.driver_name, row.fullname))
+                        except CloudShellAPIError as err:
+                            logging.warning('Error assigning Driver to {} to {}: {}'.format(row.driver_name,
+                                                                                            row.fullname, err.message))
+                            print 'Unable to assign {} to device {}: {}'.format(row.driver_name, row.fullname,
+                                                                                err.message)
 
                     # set attributes
                     a_list = self.cs_session.GetResourceDetails(resourceFullPath=row.fullname).ResourceAttributes
