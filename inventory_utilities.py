@@ -435,7 +435,7 @@ class CloudShellInventoryUtilities:
 
         try:
             inv_report = []
-            inv_report.append(['Name', 'Address', 'Family', 'Model', 'Reserved', 'Domains'])
+            inv_report.append(['Name', 'Address', 'Family', 'Model', 'Reserved', 'Domains', 'Location'])
 
             xml_raw = self.cs_session.ExportFamiliesAndModels().Configuration
 
@@ -459,6 +459,7 @@ class CloudShellInventoryUtilities:
                     family_list.append(each['Name'])
 
             for family in family_list:
+                print ' - Gathering resources in the {} Family'.format(family)
                 resource_list = self.cs_session.FindResources(resourceFamily=family, includeSubResources=False,
                                                               maxResults=1000).Resources
                 for resource in resource_list:
@@ -468,7 +469,7 @@ class CloudShellInventoryUtilities:
                         line.append(resource.Address)
                         line.append(resource.ResourceFamilyName)
                         line.append(resource.ResourceModelName)
-                        if 'Not in' in resource.ReservedStatus:
+                        if len(resource.Reservations) > 0:
                             line.append('True')
                         else:
                             line.append('False')
@@ -476,6 +477,10 @@ class CloudShellInventoryUtilities:
                         for dom in self.cs_session.GetResourceDetails(resourceFullPath=resource.FullPath).Domains:
                             doms.append(dom.Name)
                         line.append('; '.join(doms))
+                        if '/' in resource.FullPath:
+                            line.append(resource.FullPath[::-1].split('/', 1)[1][::-1])
+                        else:
+                            line.append(resource.FullPath)
                         inv_report.append(line)
 
             self._write_to_csv(csv_filepath, inv_report)
@@ -557,20 +562,28 @@ def main():
         # act on the input
         if not skip:
             if local.selection.list_connections:
+                print 'Listing Connections...'
                 local.list_connections()
             if local.selection.create_and_load:
+                print 'Running Create & Autoload...'
                 local.create_n_autoload()
             if local.selection.set_attributes:
+                print 'Running Set Attributes...'
                 local.set_attributes()
             if local.selection.set_connections:
+                print 'Setting Connections...'
                 local.set_connections()
             if local.selection.add_custom_attributes:
+                print 'Adding Custom Attributes...'
                 local.add_custom_attributes()
             if local.selection.inventory_report:
+                print 'Generating Inventory List...'
                 local.generate_inventory_report()
             if local.selection.user_report:
+                print 'Generating User Report...'
                 local.generate_user_report()
             if local.selection.update_users:
+                print 'Updating Users...'
                 local.update_users()
 
         print '\nComplete!'
