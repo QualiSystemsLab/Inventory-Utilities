@@ -379,12 +379,14 @@ class CloudShellInventoryUtilities:
                         self.cs_session.UpdateUser(username=row.user, isActive=row.active)
 
                     for x in xrange(len(row.add_groups)):
-                        self.cs_session.AddUsersToGroup(usernames=[row.user],
-                                                        groupName=row.add_groups[x].strip())
+                        if row.add_groups[x] != '' and row.add_groups[x] != ' ':
+                            self.cs_session.AddUsersToGroup(usernames=[row.user],
+                                                            groupName=row.add_groups[x].strip())
 
                     for x in xrange(len(row.remove_groups)):
-                        self.cs_session.RemoveUsersFromGroup(usernames=[row.user],
-                                                             groupName=row.remove_groups[x].strip())
+                        if row.remove_groups[x] != '' and row.remove_groups != ' ':
+                            self.cs_session.RemoveUsersFromGroup(usernames=[row.user],
+                                                                 groupName=row.remove_groups[x].strip())
 
                     self.cs_session.UpdateUsersLimitations([cs_api.UserUpdateRequest(
                         Username=row.user, MaxConcurrentReservations=row.max_reservation,

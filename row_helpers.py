@@ -126,7 +126,15 @@ class UserUpdateRow:
         else:
             self.active = True
 
-        self.add_groups = str(row[4].value).split(',')
-        self.remove_groups = str(row[5].value).split(',')
+        if len(row[4].value) > 0:
+            self.add_groups = str(row[4].value).split(',')
+        else:
+            self.add_groups = []
+
+        if len(row[5].value) > 0:
+            self.remove_groups = str(row[5].value).split(',')
+        else:
+            self.remove_groups = []
+
         self.max_reservation = str(row[6].value).strip()
         self.max_duration = str(int(row[7].value) * 60)
