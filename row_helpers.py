@@ -1,19 +1,19 @@
 class AutoloadRow:
     def __init__(self, row):
         # set ignore
-        if str(row[0].value).upper() == 'Y':
+        if str(row[0].value).upper().strip() == 'Y':
             self.ignore = True
         else:
             self.ignore = False
 
         # check if it's update
-        if str(row[1].value).upper() == 'Y':
+        if str(row[1].value).upper().strip() == 'Y':
             self.update = True
         else:
             self.update = False
 
         # set autoload
-        if str(row[2].value).upper() == 'Y':
+        if str(row[2].value).upper().strip() == 'Y':
             self.autoload = True
         else:
             self.autoload = False
@@ -55,7 +55,7 @@ class AutoloadRow:
 class SetAttributesRow:
     def __init__(self, row, attribute_list):
         # set ignore
-        if str(row[0].value).upper() == 'Y':
+        if str(row[0].value).upper().strip() == 'Y':
             self.ignore = True
         else:
             self.ignore = False
@@ -71,7 +71,7 @@ class SetAttributesRow:
 
 class SetConnectionsRow:
     def __init__(self, row):
-        if str(row[0].value).upper() == 'Y':
+        if str(row[0].value).upper().strip() == 'Y':
             self.ignore = True
         else:
             self.ignore = False
@@ -89,7 +89,7 @@ class SetConnectionsRow:
 
 class CustomAttributeRow:
     def __init__(self, row):
-        if str(row[0].value).upper() == 'Y':
+        if str(row[0].value).upper().strip() == 'Y':
             self.ignore = True
         else:
             self.ignore = False
@@ -113,7 +113,7 @@ class SelectionHelper:
 
 class UserUpdateRow:
     def __init__(self, row):
-        if str(row[0].value).upper() == 'Y':
+        if str(row[0].value).upper().strip() == 'Y':
             self.ignore = True
         else:
             self.ignore = False
@@ -121,7 +121,7 @@ class UserUpdateRow:
         self.user = row[1].value
         self.email = row[2].value
 
-        if str(row[3].value).upper() == 'N':
+        if str(row[3].value).upper().strip() == 'N':
             self.active = False
         else:
             self.active = True
