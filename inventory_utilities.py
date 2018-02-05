@@ -239,6 +239,14 @@ class CloudShellInventoryUtilities:
                             self.set_attribute_value(device_name=row.fullname,
                                                      attribute_name=attribute.Name,
                                                      value=row.location)
+                        elif a_name == 'Enable SNMP':
+                            self.set_attribute_value(device_name=row.fullname,
+                                                     attribute_name=attribute.Name,
+                                                     value=row.location)
+                        elif a_name == 'Power Management':
+                            self.set_attribute_value(device_name=row.fullname,
+                                                     attribute_name=attribute.Name,
+                                                     value=row.location)
 
                     # preform autoload
                     if row.autoload:

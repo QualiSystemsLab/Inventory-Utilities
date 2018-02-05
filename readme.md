@@ -20,7 +20,7 @@ There are a series of settings that need to be configured prior to running the s
 #### Executing ####
 In your command line, navigate to the folder and run the python script: 'python inventory_utilities.py'
 
-You will be presented with 6 options, plus the option to exit:
+You will be presented with 9 options, plus the option to exit:
 
 1. Create and Autoload
 2. Set Attributes
@@ -28,17 +28,21 @@ You will be presented with 6 options, plus the option to exit:
 4. Bulk Load (1, 2, 3)
 5. Add Custom Attributes
 6. List Connections
+7. Generate Inventory List
+8. Generate User List
+9. Update User
 
 
 ## Options ##
 
 #### Create and Autoload ####
-The primary purpose of this function is to create a new item into inventory with in CloudShell.
+The primary purpose of this function is to create a new, or update and existing, inventory item in CloudShell.
 
 The _Create and Autoload_ option will use the '1-CreateAndAutoLoad' tab in the Excel file.
 
 The following columns are used in this tab:
 * Ignore: if marked with __'Y' or 'y'__ will skip this row
+* Update: if marked with __'Y' or 'y'__ this will cause an existing Resource to be update (vs. being created new)
 * AutoLoad: if marked with __'Y' or 'y'__ will execute the Shell's _Autoload_ function after creation
 * Parent: if the item is a child resource (e.g. card or port), this is the name of the it's parent
 * Name: Name of this device
@@ -55,7 +59,9 @@ The following columns are used in this tab:
 * Driver Name: Name of the Driver to associate with this unit (for most shells there is only 1)
 * SNMP Version: The SNMP Version the unit is configured for: v1, v2c, v3
 * SNMP Read String: The SNMP Community Read String
-* Location: Location information on the device (Lab, rack/row, etc.)
+* Location: Location information on the device (Lab, rack/row, etc.) - for some Shells this cannot be manged by User (SNMP only), so it may generate and error during the run
+* Enable SNMP:  This is to set the __'Enable SNMP'__ flag on the device.  During autoload if True (__Y__) then the system will atttempt to login and enable SNMP settings on the device.  Default is __N__
+* Under Power Mgmt:  This is to set the __'Power Management'__ flag on the device.  This signifies that you would like CloudShell to power manage this device or not.  Default is __N__.
 
 #### Set Attributes ####
 The primary purpose of this function is to set attribute values associated with a device, attributes not associated with the autoload.  
@@ -109,7 +115,7 @@ The following columns are used in this tab:
 * DefaultValue: If you want to include a default value, do so here
 
 #### List Connections ####
-The Primary purpose of this function is to examine and capture all of a devices sub-modules (blades, ports, etc) and report what it's current connection is.
+The primary purpose of this function is to examine and capture all of a devices sub-modules (blades, ports, etc) and report what it's current connection is.
 
 The _List Connections_ option will use the '4-ListConnections' tab in the Excel file.
 
@@ -119,3 +125,51 @@ This ensures that all devices names are correct, and generally speeds the proces
 
 The following columns are used in this tab:
 * Device Names: List the name of the device you wish to list all children for
+
+#### Generate Inventory List ####
+The primary purpose of this function is to provide a current list of all inventory in the system, organized by Family/Model.
+
+There is no tab in the spreadsheet used.
+
+This function will generate a .csv name _'inventory_report_YYYY_MM_DD_HH_MM.csv'_
+
+The report contains the following column headers:
+* Name
+* Address
+* Family
+* Model
+* Reserved (T/F)
+* Domains
+* Location
+
+#### Generate User List ####
+The primary purpose of this function is to provide a current list of all users in the system.
+
+There is no tab in the spreadsheet used.
+
+This function will generate a .csv name _'user_report_YYYY_MM_DD_HH_MM.csv'_
+
+The report contains the following column headers:
+* Name
+* Email
+* Admin (T/F)
+* Active (T/F)
+* Groups
+
+#### Update Users ####
+The primary purpose of this function is to allow basic user management in bulk.
+The focus here is changing user status (Active/Admin), what Groups they are assigned to (access to equipment), reservation limitations (duration and max concurrent ownership).
+Updating email is also allowed.
+
+The _Update Users_ option will use the '5-UpdateUsers' tab in the Excel file.
+
+The following columns are used in this tab:
+* Ignore: if marked with __'Y' or 'y'__ will skip this row
+* Username: Name of the User to be modified
+* Email: Email Address to be used - if __'*'__ is used, then the user's email field will be made blank
+* Is Active: if marked with __'N' or 'n'__ then the user will be made inactive
+* Add to Groups:  comma separated list of groups the user is to be assigned to
+* Remove from Groups: comma separated list of groups the user is to be removed from
+* Max Concurrent Reservations: the maximum number of reservations a user is allowed to own at once - Blank no changes
+* Max Reservation Duration: the maximum duration, in hours, permitted for any reservation owned by this user
+ 
