@@ -44,13 +44,13 @@ class AutoloadRow:
         self.snmp_read_str = row[17].value
         self.location = row[18].value
         if str(row[19].value).upper().strip() == 'Y':
-            self.enable_snmp = 'True'
+            self.enable_snmp = True
         else:
-            self.enable_snmp = 'False'
+            self.enable_snmp = False
         if str(row[20].value).upper().strip() == 'Y':
-            self.under_pwr_mgmt = 'True'
+            self.under_pwr_mgmt = True
         else:
-            self.under_pwr_mgmt = 'False'
+            self.under_pwr_mgmt = False
         if self.name.strip() != '' and \
                 self.address.strip() != '' and \
                 self.resource_family.strip() != '' and \
