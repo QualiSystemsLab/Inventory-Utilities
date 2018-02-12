@@ -18,31 +18,31 @@ class AutoloadRow:
         else:
             self.autoload = False
 
-        self.parent = row[3].value.split(' ')[0]
-        self.name = row[4].value
+        self.parent = row[3].value.split(' ')[0].strip()
+        self.name = row[4].value.strip()
         if self.parent:
             self.fullname = '%s/%s' % (self.parent, self.name)
         else:
             self.fullname = self.name
 
-        self.resource_family = row[5].value
-        self.resource_model = row[6].value
+        self.resource_family = row[5].value.strip()
+        self.resource_model = row[6].value.strip()
         self.domain = []
         dom_list = row[7].value
         temp = dom_list.split(',')
         for each in temp:
             self.domain.append(each.strip())
-        self.address = row[8].value
-        self.folder_path = row[9].value
-        self.connection_type = row[10].value
-        self.user = row[11].value
-        self.password = row[12].value
-        self.enable_password = row[13].value
-        self.description = row[14].value
-        self.driver_name = row[15].value
-        self.snmp_version = row[16].value
-        self.snmp_read_str = row[17].value
-        self.location = row[18].value
+        self.address = row[8].value.strip()
+        self.folder_path = row[9].value.strip()
+        self.connection_type = row[10].value.strip()
+        self.user = row[11].value.strip()
+        self.password = row[12].value.strip()
+        self.enable_password = row[13].value.strip()
+        self.description = row[14].value.strip()
+        self.driver_name = row[15].value.strip()
+        self.snmp_version = row[16].value.strip()
+        self.snmp_read_str = row[17].value.strip()
+        self.location = row[18].value.strip()
         if str(row[19].value).upper().strip() == 'Y':
             self.enable_snmp = True
         else:
@@ -51,10 +51,10 @@ class AutoloadRow:
             self.under_pwr_mgmt = True
         else:
             self.under_pwr_mgmt = False
-        if self.name.strip() != '' and \
-                self.address.strip() != '' and \
-                self.resource_family.strip() != '' and \
-                self.resource_model.strip() != '':
+        if self.name != '' and \
+                self.address != '' and \
+                self.resource_family != '' and \
+                self.resource_model != '':
             self.valid = True
         else:
             self.valid = False
@@ -68,12 +68,12 @@ class SetAttributesRow:
         else:
             self.ignore = False
 
-        self.name = row[1].value
+        self.name = row[1].value.strip()
         self.attributes = dict()
         n = 2
         for h in attribute_list:
             # blank check handled in the set_attributes method
-            self.attributes[h] = row[n].value
+            self.attributes[h] = row[n].value.strip()
             n += 1
 
 
@@ -87,12 +87,12 @@ class SetConnectionsRow:
         if row[1].value == '':
             self.point_a = None
         else:
-            self.point_a = row[1].value
+            self.point_a = row[1].value.strip()
 
         if row[2].value == '':
             self.point_b = None
         else:
-            self.point_b = row[2].value
+            self.point_b = row[2].value.strip()
 
 
 class CustomAttributeRow:
@@ -102,9 +102,9 @@ class CustomAttributeRow:
         else:
             self.ignore = False
 
-        self.model_name = row[1].value
-        self.attribute_name = row[2].value
-        self.default_value = row[3].value
+        self.model_name = row[1].value.strip()
+        self.attribute_name = row[2].value.strip()
+        self.default_value = row[3].value.strip()
 
 
 class SelectionHelper:
@@ -126,8 +126,8 @@ class UserUpdateRow:
         else:
             self.ignore = False
 
-        self.user = row[1].value
-        self.email = row[2].value
+        self.user = row[1].value.strip()
+        self.email = row[2].value.strip()
 
         if str(row[3].value).upper().strip() == 'N':
             self.active = False
