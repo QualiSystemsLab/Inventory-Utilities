@@ -159,32 +159,49 @@ class CloudShellInventoryUtilities:
             row = row_helpers.AutoloadRow(sheet.row(ro))  # builds the data into our object from the AutoLoad Tab
             if row.valid and not row.ignore:
                 try:
-                    # build new item
-                    self.cs_session.CreateResource(resourceFamily=row.resource_family,
-                                                   resourceModel=row.resource_model,
-                                                   resourceName=row.name,
-                                                   resourceAddress=row.address,
-                                                   folderFullPath=row.folder_path,
-                                                   parentResourceFullPath=row.parent,
-                                                   resourceDescription=row.description)
-                    logging.info('New Resource Created: %s (F: %s, M: %s, A: %s, P: %s)' %
-                                 (row.name, row.resource_family, row.resource_model, row.address, row.folder_path))
+                    # is new and not update
+                    if not row.update:
+                        # build new item
+                        self.cs_session.CreateResource(resourceFamily=row.resource_family,
+                                                       resourceModel=row.resource_model,
+                                                       resourceName=row.name,
+                                                       resourceAddress=row.address,
+                                                       folderFullPath=row.folder_path,
+                                                       parentResourceFullPath=row.parent,
+                                                       resourceDescription=row.description)
+                        logging.info('New Resource Created: %s (F: %s, M: %s, A: %s, P: %s)' %
+                                     (row.name, row.resource_family, row.resource_model, row.address, row.folder_path))
+                    else:
+                        self.cs_session.UpdateResourceAddress(resourceFullPath=row.fullname,
+                                                              resourceAddress=row.address)
+                        logging.info('Updated Address on {} to {}'.format(row.name, row.address))
+                        if '/' not in row.fullname:
+                            self.cs_session.MoveResources([row.fullname], row.folder_path)
+                            logging.info('Moved Resource {} to {}'.format(row.name, row.folder_path))
 
                     # add to domain:
                     for dom in row.domain:
-                        if dom != '':
+                        if dom != '' and not dom.startswith('x_'):
                             self.cs_session.AddResourcesToDomain(domainName=str(dom).strip(),
                                                                  resourcesNames=[row.fullname])
-                            logging.debug('%s added to domain %s' % (row.name, dom))
-                        # else:
-                        #     self.cs_session.AddResourcesToDomain(domainName='Global',
-                        #                                          resourcesNames=[row.fullname])
+                            logging.info('%s added to domain %s' % (row.name, dom))
+                        elif dom.startswith('x_'):
+                            rm_dom = dom.split('x_')[1]
+                            self.cs_session.RemoveResourcesFromDomain(domainName=rm_dom.strip(),
+                                                                      resourcesNames=[row.fullname])
+                            logging.info('Removed {} from domain: {}'.format(row.fullname, rm_dom))
 
                     # set the driver:
                     if row.driver_name.strip() != '':
-                        self.cs_session.UpdateResourceDriver(resourceFullPath=row.fullname,
-                                                             driverName=row.driver_name)
-                        logging.debug('Driver "%s" added to %s' % (row.driver_name, row.fullname))
+                        try:
+                            self.cs_session.UpdateResourceDriver(resourceFullPath=row.fullname,
+                                                                 driverName=row.driver_name)
+                            logging.info('Driver "%s" added to %s' % (row.driver_name, row.fullname))
+                        except CloudShellAPIError as err:
+                            logging.warning('Error assigning Driver to {} to {}: {}'.format(row.driver_name,
+                                                                                            row.fullname, err.message))
+                            print 'Unable to assign {} to device {}: {}'.format(row.driver_name, row.fullname,
+                                                                                err.message)
 
                     # set attributes
                     a_list = self.cs_session.GetResourceDetails(resourceFullPath=row.fullname).ResourceAttributes
@@ -222,6 +239,14 @@ class CloudShellInventoryUtilities:
                             self.set_attribute_value(device_name=row.fullname,
                                                      attribute_name=attribute.Name,
                                                      value=row.location)
+                        elif a_name == 'Enable SNMP':
+                            self.set_attribute_value(device_name=row.fullname,
+                                                     attribute_name=attribute.Name,
+                                                     value=row.enable_snmp)
+                        elif a_name == 'Power Management':
+                            self.set_attribute_value(device_name=row.fullname,
+                                                     attribute_name=attribute.Name,
+                                                     value=row.under_pwr_mgmt)
 
                     # preform autoload
                     if row.autoload:
@@ -362,12 +387,14 @@ class CloudShellInventoryUtilities:
                         self.cs_session.UpdateUser(username=row.user, isActive=row.active)
 
                     for x in xrange(len(row.add_groups)):
-                        self.cs_session.AddUsersToGroup(usernames=[row.user],
-                                                        groupName=row.add_groups[x].strip())
+                        if row.add_groups[x] != '' and row.add_groups[x] != ' ':
+                            self.cs_session.AddUsersToGroup(usernames=[row.user],
+                                                            groupName=row.add_groups[x].strip())
 
                     for x in xrange(len(row.remove_groups)):
-                        self.cs_session.RemoveUsersFromGroup(usernames=[row.user],
-                                                             groupName=row.remove_groups[x].strip())
+                        if row.remove_groups[x] != '' and row.remove_groups != ' ':
+                            self.cs_session.RemoveUsersFromGroup(usernames=[row.user],
+                                                                 groupName=row.remove_groups[x].strip())
 
                     self.cs_session.UpdateUsersLimitations([cs_api.UserUpdateRequest(
                         Username=row.user, MaxConcurrentReservations=row.max_reservation,
@@ -418,7 +445,7 @@ class CloudShellInventoryUtilities:
 
         try:
             inv_report = []
-            inv_report.append(['Name', 'Address', 'Family', 'Model', 'Reserved', 'Domains'])
+            inv_report.append(['Name', 'Address', 'Family', 'Model', 'Reserved', 'Domains', 'Location'])
 
             xml_raw = self.cs_session.ExportFamiliesAndModels().Configuration
 
@@ -442,6 +469,7 @@ class CloudShellInventoryUtilities:
                     family_list.append(each['Name'])
 
             for family in family_list:
+                print ' - Gathering resources in the {} Family'.format(family)
                 resource_list = self.cs_session.FindResources(resourceFamily=family, includeSubResources=False,
                                                               maxResults=1000).Resources
                 for resource in resource_list:
@@ -451,7 +479,7 @@ class CloudShellInventoryUtilities:
                         line.append(resource.Address)
                         line.append(resource.ResourceFamilyName)
                         line.append(resource.ResourceModelName)
-                        if 'Not in' in resource.ReservedStatus:
+                        if len(resource.Reservations) > 0:
                             line.append('True')
                         else:
                             line.append('False')
@@ -459,6 +487,10 @@ class CloudShellInventoryUtilities:
                         for dom in self.cs_session.GetResourceDetails(resourceFullPath=resource.FullPath).Domains:
                             doms.append(dom.Name)
                         line.append('; '.join(doms))
+                        if '/' in resource.FullPath:
+                            line.append(resource.FullPath[::-1].split('/', 1)[1][::-1])
+                        else:
+                            line.append(resource.FullPath)
                         inv_report.append(line)
 
             self._write_to_csv(csv_filepath, inv_report)
@@ -540,20 +572,28 @@ def main():
         # act on the input
         if not skip:
             if local.selection.list_connections:
+                print 'Listing Connections...'
                 local.list_connections()
             if local.selection.create_and_load:
+                print 'Running Create & Autoload...'
                 local.create_n_autoload()
             if local.selection.set_attributes:
+                print 'Running Set Attributes...'
                 local.set_attributes()
             if local.selection.set_connections:
+                print 'Setting Connections...'
                 local.set_connections()
             if local.selection.add_custom_attributes:
+                print 'Adding Custom Attributes...'
                 local.add_custom_attributes()
             if local.selection.inventory_report:
+                print 'Generating Inventory List...'
                 local.generate_inventory_report()
             if local.selection.user_report:
+                print 'Generating User Report...'
                 local.generate_user_report()
             if local.selection.update_users:
+                print 'Updating Users...'
                 local.update_users()
 
         print '\nComplete!'
