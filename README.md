@@ -17,6 +17,10 @@ There are a series of settings that need to be configured prior to running the s
 * logfilename:  Name for the log file to be created (or appended to) for this operation.  Log file is created in the local directory
 * log level: Log Severity Level.  DEBUG by default, will capture each step.
 
+#### Installation ####
+1. Download and extract the latest release
+2. In your command line, navigate to the folder and run the following to get the relevant requirements: 'pip install -r requirements.txt'
+
 #### Executing ####
 In your command line, navigate to the folder and run the python script: 'python inventory_utilities.py'
 
