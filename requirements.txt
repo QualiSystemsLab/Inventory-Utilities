@@ -1,0 +1,2 @@
+xlrd>=1.1.0,<1.2.0
+cloudshell-automation-api>=8.0,<9.1
