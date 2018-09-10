@@ -5,6 +5,9 @@ import xlrd
 import csv
 import os
 import row_helpers
+from time import strftime
+from xml.etree.cElementTree import XML
+import xml_to_dict as x2d
 
 
 BAD_VALUE = ' 80y  | 53hak~ljbdpiSY* piwh4t[09AP s<cj'
@@ -38,6 +41,11 @@ class CloudShellInventoryUtilities:
         except CloudShellAPIError as err:
             print err.message
             logging.critical('Unable to open CloudShell API session: %s' % err.message)
+            return None
+        except StandardError as err:
+            print err.message
+            logging.critical('General Error on CloudShell API Session Start\n>> Check Configuration \n>> Msg: %s'
+                             % err.message)
             return None
 
     def _load_workbook(self):
@@ -151,22 +159,49 @@ class CloudShellInventoryUtilities:
             row = row_helpers.AutoloadRow(sheet.row(ro))  # builds the data into our object from the AutoLoad Tab
             if row.valid and not row.ignore:
                 try:
-                    # build new item
-                    self.cs_session.CreateResource(resourceFamily=row.resource_family,
-                                                   resourceModel=row.resource_model,
-                                                   resourceName=row.name,
-                                                   resourceAddress=row.address,
-                                                   folderFullPath=row.folder_path,
-                                                   parentResourceFullPath=row.parent,
-                                                   resourceDescription=row.description)
-                    logging.info('New Resource Created: %s (F: %s, M: %s, A: %s, P: %s)' %
-                                 (row.name, row.resource_family, row.resource_model, row.address, row.folder_path))
+                    # is new and not update
+                    if not row.update:
+                        # build new item
+                        self.cs_session.CreateResource(resourceFamily=row.resource_family,
+                                                       resourceModel=row.resource_model,
+                                                       resourceName=row.name,
+                                                       resourceAddress=row.address,
+                                                       folderFullPath=row.folder_path,
+                                                       parentResourceFullPath=row.parent,
+                                                       resourceDescription=row.description)
+                        logging.info('New Resource Created: %s (F: %s, M: %s, A: %s, P: %s)' %
+                                     (row.name, row.resource_family, row.resource_model, row.address, row.folder_path))
+                    else:
+                        self.cs_session.UpdateResourceAddress(resourceFullPath=row.fullname,
+                                                              resourceAddress=row.address)
+                        logging.info('Updated Address on {} to {}'.format(row.name, row.address))
+                        if '/' not in row.fullname:
+                            self.cs_session.MoveResources([row.fullname], row.folder_path)
+                            logging.info('Moved Resource {} to {}'.format(row.name, row.folder_path))
+
+                    # add to domain:
+                    for dom in row.domain:
+                        if dom != '' and not dom.startswith('x_'):
+                            self.cs_session.AddResourcesToDomain(domainName=str(dom).strip(),
+                                                                 resourcesNames=[row.fullname])
+                            logging.info('%s added to domain %s' % (row.name, dom))
+                        elif dom.startswith('x_'):
+                            rm_dom = dom.split('x_')[1]
+                            self.cs_session.RemoveResourcesFromDomain(domainName=rm_dom.strip(),
+                                                                      resourcesNames=[row.fullname])
+                            logging.info('Removed {} from domain: {}'.format(row.fullname, rm_dom))
 
                     # set the driver:
                     if row.driver_name.strip() != '':
-                        self.cs_session.UpdateResourceDriver(resourceFullPath=row.fullname,
-                                                             driverName=row.driver_name)
-                        logging.debug('Driver "%s" added to %s' % (row.driver_name, row.fullname))
+                        try:
+                            self.cs_session.UpdateResourceDriver(resourceFullPath=row.fullname,
+                                                                 driverName=row.driver_name)
+                            logging.info('Driver "%s" added to %s' % (row.driver_name, row.fullname))
+                        except CloudShellAPIError as err:
+                            logging.warning('Error assigning Driver to {} to {}: {}'.format(row.driver_name,
+                                                                                            row.fullname, err.message))
+                            print 'Unable to assign {} to device {}: {}'.format(row.driver_name, row.fullname,
+                                                                                err.message)
 
                     # set attributes
                     a_list = self.cs_session.GetResourceDetails(resourceFullPath=row.fullname).ResourceAttributes
@@ -204,6 +239,14 @@ class CloudShellInventoryUtilities:
                             self.set_attribute_value(device_name=row.fullname,
                                                      attribute_name=attribute.Name,
                                                      value=row.location)
+                        elif a_name == 'Enable SNMP':
+                            self.set_attribute_value(device_name=row.fullname,
+                                                     attribute_name=attribute.Name,
+                                                     value=row.enable_snmp)
+                        elif a_name == 'Power Management':
+                            self.set_attribute_value(device_name=row.fullname,
+                                                     attribute_name=attribute.Name,
+                                                     value=row.under_pwr_mgmt)
 
                     # preform autoload
                     if row.autoload:
@@ -231,22 +274,24 @@ class CloudShellInventoryUtilities:
         for ro in range(5, sheet.nrows):
             row = row_helpers.SetAttributesRow(sheet.row(ro), custom_attributes)  # builds the data object
             if not row.ignore:
-                device_att_list = self.attribute_names(row.name)  # get a list of this devices attributes by name
                 for att in custom_attributes:  # walk the headers and assign if they match (skip blanks)
-                    if sheet.cell(ro, custom_attributes.index(att)).strip() != '':  # not empty
-                        x_name = self.has_attribute(attribute_name=att, attribute_list=device_att_list)
-                        if x_name != BAD_VALUE:
-                            try:
-                                self.set_attribute_value(device_name=row.name, attribute_name=x_name,
-                                                         value=row.attributes[att], may_not_exist=True)
-                                logging.info('Attribute "%s" set to "%s" on %s' %
-                                             (x_name, row.attributes[att], row.name))
-                            except CloudShellAPIError as err:
-                                print 'Error - Trying to set Attribute %s on %s' % (att, row.name)
-                                print '  > %s' % err.message
-                                logging.debug('Error setting Attribute "%s" to value "%s" on %s'
-                                              % (x_name, row.attributes[att], row.name))
-                                logging.error(err.message)
+                    if str(sheet.cell(ro, custom_attributes.index(att))).strip() != '':  # not empty
+                        self.set_attribute_value(device_name=row.name, attribute_name=att,
+                                                 value=row.attributes[att], may_not_exist=True)
+
+    def _write_to_csv(self, destination, lines=[]):
+        logging.info('Writing CSV to {}'.format(destination))
+        try:
+            with open(destination, 'ab') as f:
+                csvout = csv.writer(f)
+                for line in lines:
+                    csvout.writerow(line)
+                csvout.writerow([' '])
+                f.close()
+        except StandardError as err:
+            logging.error('Issue generating CSV Report')
+            logging.error('CSV File: {}'.format(destination))
+            logging.error(err.message)
 
     def list_connections(self):
         logging.info('List Connections Called')
@@ -259,26 +304,22 @@ class CloudShellInventoryUtilities:
             else:
                 pass
 
-        line = ['Source', 'Connected To']
-        csv_filepath = '%s/current_connections.csv' % os.getcwd()
-        try:
-            with open(csv_filepath, 'wb') as f:  # open in overwrite binary
-                csvout = csv.writer(f)
-                csvout.writerow(line)
-                f.close()
+        report = [['Source', 'Connected To']]
+        csv_filepath = '{}/current_connections_{}.csv'.format(os.getcwd(), strftime('%Y_%m_%d_%Hh_%Mm'))
 
+        try:
             for item in device_query_list:
+                # report.append([item])
+
                 self.connection_list = []
+
                 details = self.cs_session.GetResourceDetails(resourceFullPath=item)
                 self._inner_connections(details)
 
-                with open(csv_filepath, 'ab') as f:  # open in append binary
-                    csvout = csv.writer(f)
-                    for pairing in self.connection_list:
-                        csvout.writerow(pairing)  # each connection is [point_a, point_b]
-                    csvout.writerow(['', ''])
-                    f.close()
+                for pairing in self.connection_list:
+                    report.append(pairing)  # each connection is [point_a, point_b]
 
+            self._write_to_csv(csv_filepath, report)
             print '==> Connections List Created: %s' % csv_filepath
         except StandardError as err:
             print 'Error Creating Connections List'
@@ -289,17 +330,29 @@ class CloudShellInventoryUtilities:
     def set_connections(self):
         logging.info('Set Connections Called')
         sheet = self.workbook.sheet_by_name('3-SetConnections')
-        for ro in range (5, sheet.nrows):
+        # for ro in range (5, sheet.nrows):
+        #     row = row_helpers.SetConnectionsRow(sheet.row(ro))
+        #     if not row.ignore:
+        #         if self._resource_exists(row.point_a) or self._resource_exists(row.point_b):
+        #             self._make_connection(row.point_a, row.point_b)
+        #         elif not row.point_a:
+        #             pass
+        #         elif not row.point_b:
+        #             pass
+        #         else:
+        #             pass
+
+        for ro in range(5, sheet.nrows):
             row = row_helpers.SetConnectionsRow(sheet.row(ro))
             if not row.ignore:
-                if self._resource_exists(row.point_a) and self._resource_exists(row.point_b):
-                    self._make_connection(row.point_a, row.point_b)
-                elif not row.point_a:
-                    pass
-                elif not row.point_b:
-                    pass
-                else:
-                    pass
+                if row.point_a:
+                    if row.point_b:
+                        self._make_connection(row.point_a, row.point_b)
+                    else:
+                        self._make_connection(row.point_a, '')
+                elif row.point_b:
+                    if not row.point_a:
+                        self._make_connection(row.point_b, '')
 
     def add_custom_attributes(self):
         logging.info('Add Custom Attributes Called')
@@ -318,6 +371,151 @@ class CloudShellInventoryUtilities:
                     print err.message
                     logging.error(err.message)
 
+    def update_users(self):
+        logging.info('Update Users Called')
+        sheet = self.workbook.sheet_by_name('5-UpdateUsers')
+
+        for ro in range(5, sheet.nrows):
+            row = row_helpers.UserUpdateRow(sheet.row(ro))
+            if not row.ignore:
+                try:
+                    if row.email == '*':
+                        self.cs_session.UpdateUser(username=row.user, email='', isActive=row.active)
+                    elif row.email != '':
+                        self.cs_session.UpdateUser(username=row.user, email=row.email, isActive=row.active)
+                    else:
+                        self.cs_session.UpdateUser(username=row.user, isActive=row.active)
+
+                    for x in xrange(len(row.add_groups)):
+                        if row.add_groups[x] != '' and row.add_groups[x] != ' ':
+                            self.cs_session.AddUsersToGroup(usernames=[row.user],
+                                                            groupName=row.add_groups[x].strip())
+
+                    for x in xrange(len(row.remove_groups)):
+                        if row.remove_groups[x] != '' and row.remove_groups != ' ':
+                            self.cs_session.RemoveUsersFromGroup(usernames=[row.user],
+                                                                 groupName=row.remove_groups[x].strip())
+
+                    self.cs_session.UpdateUsersLimitations([cs_api.UserUpdateRequest(
+                        Username=row.user, MaxConcurrentReservations=row.max_reservation,
+                        MaxReservationDuration=row.max_duration)])
+
+                except CloudShellAPIError as err:
+                    logging.error('Error in Updating Users')
+                    logging.error(err.message)
+                    print 'Error Updating User {}\n  {}\n'.format(row.user, err.message)
+
+    def generate_user_report(self):
+        logging.info('Generate User Report')
+
+        csv_filepath = '{}/user_report_{}.csv'.format(os.getcwd(), strftime('%Y_%m_%d_%Hh_%Mm'))
+
+        try:
+            user_list = self.cs_session.GetAllUsersDetails().Users
+
+            user_report = []
+            user_report.append(['Name', 'Email', 'Admin', 'Active', 'Groups'])
+
+            for user in user_list:
+                line = []
+                g_list = []
+
+                for g in user.Groups:
+                    g_list.append(g.Name)
+
+                line.append(user.Name)
+                line.append(user.Email)
+                line.append(user.IsAdmin)
+                line.append(user.IsActive)
+                line.append('; '.join(g_list))
+
+                user_report.append(line)
+
+            self._write_to_csv(csv_filepath, user_report)
+            print 'User Report Generated:\n  {}\n'.format(csv_filepath)
+        except StandardError as err:
+            logging.error('Unable to Generate User Report')
+            logging.error(err.message)
+            print 'Unable to Generate User Report:\n{}'.format(err.message)
+
+    def generate_inventory_report(self):
+        logging.info('Generate Inventory Report')
+
+        csv_filepath = '{}/inventory_report_{}.csv'.format(os.getcwd(), strftime('%Y_%m_%d_%Hh_%Mm'))
+
+        try:
+            inv_report = []
+            inv_report.append(['Name', 'Address', 'Family', 'Model', 'Reserved', 'Domains', 'Location'])
+
+            xml_raw = self.cs_session.ExportFamiliesAndModels().Configuration
+
+            xml_obj = XML(xml_raw)
+            xmldic = x2d.XmlDictConfig(xml_obj)
+
+            outer_key = xmldic.keys()
+
+            master_list = []
+            family_list = []
+
+            for key in outer_key:
+                if 'ResourceFamilies' in key:
+                    inner = xmldic[key]
+                    inner_keys = inner.keys()
+                    master_list = inner[inner_keys[0]]
+                    break
+
+            for each in master_list:
+                if each.get('ResourceType', 'Not') == 'Resource':
+                    family_list.append(each['Name'])
+
+            for family in family_list:
+                print ' - Gathering resources in the {} Family'.format(family)
+                resource_list = self.cs_session.FindResources(resourceFamily=family, includeSubResources=False,
+                                                              maxResults=1000).Resources
+                for resource in resource_list:
+                    if '/' not in resource.FullName:
+                        line = []
+                        line.append(resource.FullName)
+                        line.append(resource.Address)
+                        line.append(resource.ResourceFamilyName)
+                        line.append(resource.ResourceModelName)
+                        if len(resource.Reservations) > 0:
+                            line.append('True')
+                        else:
+                            line.append('False')
+                        doms = []
+                        for dom in self.cs_session.GetResourceDetails(resourceFullPath=resource.FullPath).Domains:
+                            doms.append(dom.Name)
+                        line.append('; '.join(doms))
+                        if '/' in resource.FullPath:
+                            line.append(resource.FullPath[::-1].split('/', 1)[1][::-1])
+                        else:
+                            line.append(resource.FullPath)
+                        inv_report.append(line)
+
+            self._write_to_csv(csv_filepath, inv_report)
+            print ('Inventory Report Generated:\n  {}\n'.format(csv_filepath))
+        except StandardError as err:
+            logging.error('Unable to generate inventory report')
+            logging.error(err.message)
+            print 'Unable to generate Inventory Report{}'.format(err.message)
+
+    def print_options(self):
+        print 'Make your selection:'
+        print ' Main Tasks:'
+        print '  1) Create and AutoLoad'
+        print '  2) Set Attributes'
+        print '  3) Set Connections'
+        print '  4) Bulk Load (1, 2, 3)'
+        print ' --------------------------------'
+        print ' Aux Tasks:'
+        print '  5) Add Custom Attributes'
+        print '  6) List Connections'
+        print '  7) Generate Inventory List'
+        print '  8) Generate User List'
+        print '  9) Update Users'
+
+
 ##########################################
 def main():
     skip = False
@@ -325,68 +523,83 @@ def main():
     print '\n\nCloudShell Inventory Bulk Upload Utility'
     local = CloudShellInventoryUtilities()
 
-    print '\nUsing: %s' % local.filepath
-    print '%s' % '-' * 40
-    print 'Make your selection:'
-    print ' Main Tasks:'
-    print '  1) Create and AutoLoad'
-    print '  2) Set Attributes'
-    print '  3) Set Connections'
-    print '  4) Bulk Load (1, 2, 3)'
-    print ' --------------------------------'
-    print ' Aux Tasks:'
-    print '  5) Add Custom Attributes'
-    print '  6) List Connections'
+    if local.cs_session:
+        print '\nUsing: %s' % local.filepath
+        print '%s' % '-' * 40
+        local.print_options()
 
+        while input_loop:
+            print "\n'0' or 'exit' to Exit"
+            # main prompt
+            user_input = raw_input('Selection (1-9): ')
 
-    while input_loop:
-        print "\n'0' or 'exit' to Exit"
-        # main prompt
-        user_input = raw_input('Selection (1-6): ')
+            logging.debug('User Input from Main Prompt: %s' % user_input)
 
-        logging.debug('User Input from Main Prompt: %s' % user_input)
+            if user_input == '0' or user_input.upper() == 'EXIT':
+                skip = True
+                input_loop = False
+            else:
+                try:
+                    input_check = int(user_input)
+                    if int(input_check) in range(1, 10):  # good response
+                        input_loop = False
 
-        if user_input == '0' or user_input.upper() == 'EXIT':
-            skip = True
-            input_loop = False
-        else:
-            try:
-                input_check = int(user_input)
-                if int(input_check) in range(1, 7):  # good response
-                    input_loop = False
+                        if user_input == '1':
+                            local.selection.create_and_load = True
+                        elif user_input == '2':
+                            local.selection.set_attributes = True
+                        elif user_input == '3':
+                            local.selection.set_connections = True
+                        elif user_input == '4':
+                            local.selection.create_and_load = True
+                            local.selection.set_attributes = True
+                            local.selection.set_connections = True
+                        elif user_input == '5':
+                            local.selection.add_custom_attributes = True
+                        elif user_input == '6':
+                            local.selection.list_connections = True
+                        elif user_input == '7':
+                            local.selection.inventory_report = True
+                        elif user_input == '8':
+                            local.selection.user_report = True
+                        elif user_input == '9':
+                            local.selection.update_users = True
+                except StandardError:
+                    print '\n>> Invalid Input'
+                    local.print_options()
+            # end while loop for input
 
-                    if user_input == '1':
-                        local.selection.create_and_load = True
-                    elif user_input == '2':
-                        local.selection.set_attributes = True
-                    elif user_input == '3':
-                        local.selection.set_connections = True
-                    elif user_input == '4':
-                        local.selection.create_and_load = True
-                        local.selection.set_attributes = True
-                        local.selection.set_connections = True
-                    elif user_input == '5':
-                        local.selection.add_custom_attributes = True
-                    elif user_input == '6':
-                        local.selection.list_connections = True
-            except StandardError:
-                print 'Invalid Input'
-        # end while loop for input
+        # act on the input
+        if not skip:
+            if local.selection.list_connections:
+                print 'Listing Connections...'
+                local.list_connections()
+            if local.selection.create_and_load:
+                print 'Running Create & Autoload...'
+                local.create_n_autoload()
+            if local.selection.set_attributes:
+                print 'Running Set Attributes...'
+                local.set_attributes()
+            if local.selection.set_connections:
+                print 'Setting Connections...'
+                local.set_connections()
+            if local.selection.add_custom_attributes:
+                print 'Adding Custom Attributes...'
+                local.add_custom_attributes()
+            if local.selection.inventory_report:
+                print 'Generating Inventory List...'
+                local.generate_inventory_report()
+            if local.selection.user_report:
+                print 'Generating User Report...'
+                local.generate_user_report()
+            if local.selection.update_users:
+                print 'Updating Users...'
+                local.update_users()
 
-    # act on the input
-    if not skip:
-        if local.selection.list_connections:
-            local.list_connections()
-        if local.selection.create_and_load:
-            local.create_n_autoload()
-        if local.selection.set_attributes:
-            local.set_attributes()
-        if local.selection.set_connections:
-            local.set_connections()
-        if local.selection.add_custom_attributes:
-            local.add_custom_attributes()
+        print '\nComplete!'
 
-    print '\nComplete!'
+    else:
+        print '\n!! No CloudShell connection - See Error Above\nExiting'
 
 
 if __name__ == '__main__':
